@@ -1,0 +1,124 @@
+!pip install pandas numpy matplotlib seaborn scikit-learn
+
+#Data Loading and Preprocessing
+import pandas as pd
+import numpy as np
+
+# Load the datasets
+matches_df = pd.read_csv('matches.csv')
+deliveries_df = pd.read_csv('deliverie(s).csv')
+
+# Quick overview of the datasets
+print("Matches dataset shape:", matches_df.shape)
+print("Deliveries dataset shape:", deliveries_df.shape)
+
+# Exploratory Data Analysis (EDA)
+# Display the first few rows
+print(matches_df.head())
+print(deliveries_df.head())
+
+# Check for missing values in both datasets
+print(matches_df.isnull().sum())
+print(deliveries_df.isnull().sum())
+
+# Summary statistics
+print(matches_df.describe())
+print(deliveries_df.describe())
+
+# Visualize basic trends such as the number of matches per season or wins per team.
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+
+# Example: Matches per season
+plt.figure(figsize=(10, 5))
+sns.countplot(data=matches_df, x='season')
+plt.title("Matches per Season")
+plt.show()
+
+# Example: Wins per team
+plt.figure(figsize=(12, 6))
+sns.countplot(data=matches_df, x='winner', order=matches_df['winner'].value_counts().index)
+plt.title("Match Wins by Team")
+plt.xticks(rotation=45)
+plt.show()
+
+# Data Integration & Feature Engineering
+# Merge Datasets
+# Merge on match id: rename for consistency if needed
+matches_df.rename(columns={'id': 'match_id'}, inplace=True)
+combined_df = pd.merge(deliveries_df, matches_df, on='match_id', how='left')
+
+# Verify the merge
+print(combined_df.head())
+
+# Aggregate total runs per match
+match_runs = combined_df.groupby('match_id')['total_runs'].sum().reset_index()
+match_runs.columns = ['match_id', 'total_runs']
+
+# Merge back with match-level data if needed
+matches_enhanced = pd.merge(matches_df, match_runs, on='match_id', how='left')
+print(matches_enhanced.head())
+
+# Save the enhanced matches dataset to CSV for Power BI import
+matches_enhanced.to_csv('matches_enhanced.csv', index=False)
+
+# Predictive Modeling in Python
+# Prepare the Data
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+
+# For simplicity, use a subset of features
+features = ['season', 'toss_decision', 'win_by_runs', 'win_by_wickets', 'total_runs']
+data = matches_enhanced[features + ['winner']].dropna()
+
+# Encode categorical features
+le_toss_decision = LabelEncoder()
+data['toss_decision'] = le_toss_decision.fit_transform(data['toss_decision'])
+
+le_winner = LabelEncoder()
+data['winner_encoded'] = le_winner.fit_transform(data['winner'])
+
+X = data[features]
+y = data['winner_encoded']
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train the Model
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+# Initialize and train the Random Forest model
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+
+# Make predictions
+y_pred = rf_model.predict(X_test)
+
+# Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+print("Accuracy:", accuracy)
+print(classification_report(y_test, y_pred))
+
+# Making Predictions
+# Example: Predicting the winner for a new match
+# Construct a sample input for prediction. Ensure that the feature values match the expected format.
+sample_data = {
+    'season': [2023],                   # Example season
+    'toss_decision': [le_toss_decision.transform(['bat'])[0]],  # Transform the categorical input
+    'win_by_runs': [10],                # Hypothetical value
+    'win_by_wickets': [0],              # Hypothetical value
+    'total_runs': [160]                 # Hypothetical total runs scored in the match
+}
+
+# Create a DataFrame from the sample data
+sample_df = pd.DataFrame(sample_data)
+
+# Make a prediction using the trained Random Forest model
+predicted_winner_encoded = rf_model.predict(sample_df)
+
+# Convert the encoded prediction back to the original team label
+predicted_winner = le_winner.inverse_transform(predicted_winner_encoded)
+
+print("Predicted Winner:", predicted_winner[0])
